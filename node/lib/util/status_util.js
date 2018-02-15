@@ -446,7 +446,8 @@ exports.getRepoStatus = co.wrap(function *(repo, options) {
         const index = yield repo.index();
         const headTree = yield headCommit.getTree();
         const diff = yield NodeGit.Diff.treeToIndex(repo, headTree, index);
-        const changes = yield SubmoduleUtil.getSubmoduleChangesFromDiff(diff);
+        const changes = yield SubmoduleUtil.getSubmoduleChangesFromDiff(diff,
+                                                                        true);
         const indexUrls =
                  yield SubmoduleConfigUtil.getSubmodulesFromIndex(repo, index);
         const headUrls =
