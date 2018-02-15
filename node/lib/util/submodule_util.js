@@ -418,19 +418,29 @@ exports.getSubmoduleChanges = co.wrap(function *(repo,
 
 /**
  * Return the states of the submodules in the specified `commit` in the
- * specified `repo`.
+ * specified `repo`.  If the specified 'names' is not null, return only
+ * submodules in 'names'; otherwise, return all submodules.
  *
  * @async
  * @param {NodeGit.Repository} repo
  * @param {NodeGit.Commit}     commit
+ * @param {String[]|null}      names
  * @return {Object} map from submodule name to `Submodule` object
  */
-exports.getSubmodulesForCommit = co.wrap(function *(repo, commit) {
+exports.getSubmodulesForCommit = co.wrap(function *(repo, commit, names) {
     assert.instanceOf(repo, NodeGit.Repository);
     assert.instanceOf(commit, NodeGit.Commit);
+    if (null !== names) {
+        assert.isArray(names);
+    }
     const urls =
                yield SubmoduleConfigUtil.getSubmodulesFromCommit(repo, commit);
-    const names = Object.keys(urls);
+    if (null === names) {
+        names = Object.keys(urls);
+    }
+    else {
+        names = names.filter(n => n in urls);
+    }
     const shas = yield exports.getSubmoduleShasForCommit(repo, names, commit);
     let result = {};
     names.forEach(name => {

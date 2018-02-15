@@ -607,16 +607,48 @@ describe("SubmoduleUtil", function () {
                 state: "S:C2-1 foo=Sa:1;H=2",
                 commit: "2",
                 expected: { foo: new Submodule("a", "1") },
+                names: null,
+            },
+            "two": {
+                state: "S:C2-1 foo=Sa:1,bar=Sa:1;H=2",
+                commit: "2",
+                expected: {
+                    foo: new Submodule("a", "1"),
+                    bar: new Submodule("a", "1"),
+                },
+                names: null,
+            },
+            "no names": {
+                state: "S:C2-1 foo=Sa:1,bar=Sa:1;H=2",
+                commit: "2",
+                expected: {},
+                names: [],
+            },
+            "bad name": {
+                state: "S:C2-1 foo=Sa:1,bar=Sa:1;H=2",
+                commit: "2",
+                expected: {},
+                names: ["whoo"],
+            },
+            "good name": {
+                state: "S:C2-1 foo=Sa:1,bar=Sa:1;H=2",
+                commit: "2",
+                expected: {
+                    bar: new Submodule("a", "1"),
+                },
+                names: ["bar"],
             },
             "from later commit": {
                 state: "S:C2-1 x=S/a:1;C3-2 x=S/a:2;H=3",
                 commit: "3",
                 expected: { x: new Submodule("/a", "2") },
+                names: null,
             },
              "none": {
                  state: "S:Cu 1=1;Bu=u",
                  commit: "u",
                  expected: {},
+                 names: null,
              },
         };
         Object.keys(cases).forEach(caseName => {
@@ -627,8 +659,9 @@ describe("SubmoduleUtil", function () {
                 const mappedCommitSha = written.oldCommitMap[c.commit];
                 const commit = yield repo.getCommit(mappedCommitSha);
                 const result = yield SubmoduleUtil.getSubmodulesForCommit(
-                                                                       repo,
-                                                                       commit);
+                                                                      repo,
+                                                                      commit,
+                                                                      c.names);
                 let mappedResult = {};
                 Object.keys(result).forEach((name) => {
                     const resultSub = result[name];

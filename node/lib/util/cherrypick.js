@@ -86,10 +86,13 @@ exports.cherryPick = co.wrap(function *(metaRepo, commit) {
     let indexChanged = false;
     let pickers = [];
 
+    const changedSubs = Object.keys(changes);
     const headSubs = yield SubmoduleUtil.getSubmodulesForCommit(metaRepo,
-                                                                head);
+                                                                head,
+                                                                changedSubs);
     const commitSubs = yield SubmoduleUtil.getSubmodulesForCommit(metaRepo,
-                                                                  commit);
+                                                                  commit,
+                                                                  changedSubs);
 
     const metaIndex = yield metaRepo.index();
     const opener = new Open.Opener(metaRepo, null);
