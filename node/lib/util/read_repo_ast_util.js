@@ -441,7 +441,10 @@ exports.readRAST = co.wrap(function *(repo) {
     let openSubmodules = {};
 
     if (!bare) {
-        const subNames = yield repo.getSubmoduleNames();
+        const index = yield repo.index();
+        const subs = yield SubmoduleConfigUtil.getSubmodulesFromIndex(repo,
+                                                                      index);
+        const subNames = Object.keys(subs);
         for (let i = 0; i < subNames.length; ++i) {
             const subName = subNames[i];
             const status = yield NodeGit.Submodule.status(repo, subName, 0);
