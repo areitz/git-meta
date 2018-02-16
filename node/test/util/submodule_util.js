@@ -1010,4 +1010,75 @@ S:Cx-1 s=Sa:1;Cy-1 s=Sb:1;By=y;Bx=x;Cz-1 z=Sq:1;Bmaster=z`,
             }));
         });
     });
+    describe("changeSubmodules", function () {
+        const cases = {
+            "noop": {
+                input: "x=S",
+                submodules: {},
+            },
+            "simple": {
+                input: "x=S",
+                submodules: {
+                    "s": new Submodule("/a", "1"),
+                },
+                expected: "x=S:I s=S/a:1",
+            },
+            "nested": {
+                input: "x=S",
+                submodules: {
+                    "s/t/u": new Submodule("/a", "1"),
+                },
+                expected: "x=S:I s/t/u=S/a:1",
+            },
+            "multiple": {
+                input: "x=S",
+                submodules: {
+                    "s/t/u": new Submodule("/a", "1"),
+                    "z/t/u": new Submodule("/b", "1"),
+                },
+                expected: "x=S:I s/t/u=S/a:1,z/t/u=S/b:1",
+            },
+            "added": {
+                input: "a=B|x=U",
+                submodules: {
+                    "s": new Submodule("/a", "1"),
+                },
+                expected: "x=E:I s=S/a:1",
+            },
+            "removed": {
+                input: "a=B|x=U",
+                submodules: {
+                    "s": null,
+                },
+                expected: "x=E:I s",
+            },
+        };
+        Object.keys(cases).forEach(caseName => {
+            const c = cases[caseName];
+            it(caseName, co.wrap(function *() {
+                const adder = co.wrap(function *(repos, maps) {
+                    const repo = repos.x;
+                    const subs = {};
+                    Object.keys(c.submodules).forEach(name => {
+                        const sub = c.submodules[name];
+                        if (null !== sub) {
+                            const sha = maps.reverseCommitMap[sub.sha];
+                            subs[name] = new Submodule(sub.url, sha);
+                        }
+                        else {
+                            subs[name] = null;
+                        }
+                    });
+                    const index = yield repo.index();
+                    yield SubmoduleUtil.changeSubmodules(repo, index, subs);
+                    yield index.write();
+                });
+                yield RepoASTTestUtil.testMultiRepoManipulator(c.input,
+                                                               c.expected,
+                                                               adder,
+                                                               c.fails);
+            }));
+        });
+    });
+
 });

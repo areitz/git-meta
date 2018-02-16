@@ -37,15 +37,19 @@
 const assert  = require("chai").assert;
 const co      = require("co");
 const colors  = require("colors");
+const mkdirp    = require("mkdirp");
 const NodeGit = require("nodegit");
 const fs      = require("fs-promise");
 const path    = require("path");
+const rimraf  = require("rimraf");
 
+const DeinitUtil          = require("./deinit_util");
 const GitUtil             = require("./git_util");
 const Submodule           = require("./submodule");
 const SubmoduleChange     = require("./submodule_change");
 const SubmoduleFetcher    = require("./submodule_fetcher");
 const SubmoduleConfigUtil = require("./submodule_config_util");
+const TreeUtil            = require("./tree_util");
 const UserError           = require("./user_error");
 
 /**
@@ -743,3 +747,51 @@ exports.mergeModulesFile = co.wrap(function *(repo,
     return false;
 });
 
+/**
+ * Change the specified `submodules` in the specified index.  If a name maps to
+ * a `Submodule`, update it in the specified `index` in the specified `repo`.
+ * Otherwise, if it maps to `null`, remove it.  Do not open submodules.  Do not
+ * write out the index.
+ *
+ * @param {NodeGit.Repository} repo
+ * @param {NodeGit.Index}      index
+ * @param {Object}             submodules    name to Submodule
+ */
+exports.changeSubmodules = co.wrap(function *(repo, index, submodules) {
+    assert.instanceOf(repo, NodeGit.Repository);
+    assert.instanceOf(index, NodeGit.Index);
+    assert.isObject(submodules);
+    if (0 === Object.keys(submodules).count) {
+        return;                                                       // RETURN
+    }
+    const urls = yield SubmoduleConfigUtil.getSubmodulesFromIndex(repo, index);
+    const changes = {};
+    function rmrf(dir) {
+        return new Promise(callback => {
+            return rimraf(path.join(repo.workdir(), dir), {}, callback);
+        });
+    }
+
+    for (let name in submodules) {
+        const sub = submodules[name];
+        if (null === sub) {
+            yield DeinitUtil.deinit(repo, name);
+            changes[name] = null;
+            delete urls[name];
+            yield rmrf(name);
+        }
+        else {
+            changes[name] = new TreeUtil.Change(
+                                            NodeGit.Oid.fromString(sub.sha),
+                                            NodeGit.TreeEntry.FILEMODE.COMMIT);
+            urls[name] = sub.url;
+            const subPath = path.join(repo.workdir(), name);
+            mkdirp.sync(subPath);
+        }
+    }
+    const parentTreeId = yield index.writeTree();
+    const parentTree = yield repo.getTree(parentTreeId);
+    const newTree = yield TreeUtil.writeTree(repo, parentTree, changes);
+    yield index.readTree(newTree);
+    yield SubmoduleConfigUtil.writeUrls(repo, index, urls);
+});

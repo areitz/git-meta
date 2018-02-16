@@ -34,22 +34,12 @@ const assert    = require("chai").assert;
 const co        = require("co");
 const colors    = require("colors");
 const fs        = require("fs-promise");
-const mkdirp    = require("mkdirp");
 const NodeGit   = require("nodegit");
 const path      = require("path");
 
 const GitUtil             = require("./git_util");
 const SubmoduleConfigUtil = require("./submodule_config_util");
-const TreeUtil            = require("./tree_util");
 const UserError           = require("./user_error");
-
-const writeUrls = co.wrap(function *(repo, index, urls) {
-    const modulesPath = path.join(repo.workdir(),
-                                  SubmoduleConfigUtil.modulesFileName);
-    const newConf = SubmoduleConfigUtil.writeConfigText(urls);
-    yield fs.writeFile(modulesPath, newConf);
-    yield index.addByPath(SubmoduleConfigUtil.modulesFileName);
-});
 
 /**
  * Add a new (empty) submodule at the specified `filename` in the specified
@@ -76,7 +66,7 @@ exports.addSubmodule = co.wrap(function *(repo, url, filename, importArg) {
     const index = yield repo.index();
     const urls = yield SubmoduleConfigUtil.getSubmodulesFromIndex(repo, index);
     urls[filename] = url;
-    yield writeUrls(repo, index, urls);
+    yield SubmoduleConfigUtil.writeUrls(repo, index, urls);
     yield index.write();
 
     const metaUrl = yield GitUtil.getOriginUrl(repo);
@@ -103,36 +93,4 @@ try '-b [BRANCH]' to specify a different branch.`);
     }
     const commit = yield subRepo.getCommit(remoteBranch.target());
     yield GitUtil.setHeadHard(subRepo, commit);
-});
-
-/**
- * Add the specified `submodules` to the specified `index` in the
- * specified `repo` and do not open them.  Do not write out the index.
- *
- * @param {NodeGit.Repository} repo
- * @param {NodeGit.Index}      index
- * @param {Object}             submodules    name to Submodule
- */
-exports.addSubmodules = co.wrap(function *(repo, index, submodules) {
-    assert.instanceOf(repo, NodeGit.Repository);
-    assert.instanceOf(index, NodeGit.Index);
-    assert.isObject(submodules);
-    if (0 === Object.keys(submodules).count) {
-        return;                                                       // RETURN
-    }
-    const urls = yield SubmoduleConfigUtil.getSubmodulesFromIndex(repo, index);
-    const changes = {};
-    for (let name in submodules) {
-        const sub = submodules[name];
-        changes[name] = new TreeUtil.Change(NodeGit.Oid.fromString(sub.sha),
-                                            NodeGit.TreeEntry.FILEMODE.COMMIT);
-        urls[name] = sub.url;
-        const subPath = path.join(repo.workdir(), name);
-        mkdirp.sync(subPath);
-    }
-    const parentTreeId = yield index.writeTree();
-    const parentTree = yield repo.getTree(parentTreeId);
-    const newTree = yield TreeUtil.writeTree(repo, parentTree, changes);
-    yield index.readTree(newTree);
-    yield writeUrls(repo, index, urls);
 });
