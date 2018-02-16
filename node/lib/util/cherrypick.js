@@ -60,11 +60,10 @@ exports.cherryPick = co.wrap(function *(metaRepo, commit) {
     assert.instanceOf(metaRepo, NodeGit.Repository);
     assert.instanceOf(commit, NodeGit.Commit);
 
-    // TODO: handle possibility of a (single) meta-repo commit corresponding to
-    // multiple commits.
     // TODO: See how we do with a variety of edge cases, e.g.: submodules added
     // and removed.
     // TODO: Deal with conflicts.
+    // TODO: handle noops for add/remove/change
 
     // Basic algorithm:
     // - start cherry-pick on meta-repo
