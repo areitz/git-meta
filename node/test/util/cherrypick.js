@@ -54,6 +54,12 @@ describe("cherrypick", function () {
     // actually testing libgit2's cherry-pick facility, but also that we need
     // to have unique commit histories in our submodules -- we can't have 'S'
     // everywhere for these tests.
+    //
+    // Cases to check:
+    // * add when already exists
+    // * delete when already delete
+    // * change when deleted
+    // * conflicts
 
     const picker = co.wrap(function *(repos, maps) {
         const x = repos.x;
@@ -91,13 +97,9 @@ describe("cherrypick", function () {
     });
 
     const cases = {
-        "simplest": {
+        "meta change will fail": {
             input: "x=S:C8-2;C2-1;Bfoo=8",
-            expected:"x=E:C9-1 8=8;Bmaster=9",
-        },
-        "no change to sub": {
-            input: "a=Ax|x=S:C8-2;C2-1 s=Sa:x;Bfoo=8",
-            expected: "x=E:C9-1 8=8;Bmaster=9",
+            fails: true,
         },
         "picking one sub": {
             input: "\
@@ -133,8 +135,8 @@ Ot Cct-a c=c!H=ct",
         "new sub on head": {
             input: `
 a=B|
-x=U:C8-2;C4-2 t=Sa:1;Bmaster=4;Bfoo=8`,
-            expected: "x=E:C9-4 8=8;Bmaster=9",
+x=U:C8-2 r=Sa:1;C4-2 t=Sa:1;Bmaster=4;Bfoo=8`,
+            expected: "x=E:C9-4 r=Sa:1;Bmaster=9",
         },
         "don't pick subs from older commit": {
             input: `
@@ -142,6 +144,10 @@ a=B:Cr-1;Cq-r;Bq=q|
 x=S:C2-1 s=Sa:1,t=Sa:1;C3-2 s=Sa:q;C8-3 t=Sa:q;Bmaster=2;Bfoo=8`,
             expected: `
 x=E:C9-2 t=Sa:qt;Bmaster=9;Ot Cqt-1 q=q!H=qt`,
+        },
+        "remove a sub": {
+            input: "a=B|x=U:C3-2;Bmaster=3;C8-2 s;Bfoo=8",
+            expected: "a=B|x=E:C9-3 s;Bmaster=9",
         },
     };
 

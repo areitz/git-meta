@@ -35,9 +35,9 @@ const co      = require("co");
 const colors  = require("colors");
 const NodeGit = require("nodegit");
 
-const Open                = require("../util/open");
-const SubmoduleUtil       = require("../util/submodule_util");
-const UserError           = require("../util/user_error");
+const Open                = require("./open");
+const SubmoduleUtil       = require("./submodule_util");
+const UserError           = require("./user_error");
 
 /**
  * Cherry-pick the specified `commit` in the specified `metaRepo`.  Return an
@@ -76,11 +76,7 @@ exports.cherryPick = co.wrap(function *(metaRepo, commit) {
     const head = yield metaRepo.getHeadCommit();
     const changes = yield SubmoduleUtil.getSubmoduleChanges(metaRepo,
                                                             commit,
-                                                            true);
-
-    yield SubmoduleUtil.cacheSubmodules(metaRepo, () => {
-        return NodeGit.Cherrypick.cherrypick(metaRepo, commit, {});
-    });
+                                                            false);
 
     let errorMessage = "";
     let indexChanged = false;
@@ -93,12 +89,10 @@ exports.cherryPick = co.wrap(function *(metaRepo, commit) {
     const commitSubs = yield SubmoduleUtil.getSubmodulesForCommit(metaRepo,
                                                                   commit,
                                                                   changedSubs);
-
     const metaIndex = yield metaRepo.index();
     const opener = new Open.Opener(metaRepo, null);
     let submoduleCommits = {};
     const subFetcher = yield opener.fetcher();
-
     const picker = co.wrap(function *(subName, headSha, commitSha) {
         let commitMap = {};
         submoduleCommits[subName] = commitMap;
@@ -131,12 +125,19 @@ ${colors.green(commitSha)}.`);
         }
     });
 
-
-    // Cherry-pick each submodule changed in `commit`.
+    const subsToChange = {};
 
     Object.keys(changes).forEach(subName => {
         const change = changes[subName];
-        if (null !== change.oldSha && null !== change.newSha) {
+        if (null === change.oldSha) {
+            indexChanged = true;
+            subsToChange[subName] = commitSubs[subName];
+        }
+        else if (null === change.newSha) {
+            indexChanged = true;
+            subsToChange[subName] = null;
+        }
+        else {
             const headSub = headSubs[subName];
             const commitSub = commitSubs[subName];
             const headSha = headSub.sha;
@@ -151,18 +152,21 @@ ${colors.green(commitSha)}.`);
 
     yield pickers;
 
-    // If one of the submodules could not be picked, exit.
+    // Add submodules
 
-    if ("" !== errorMessage) {
-        throw new UserError(errorMessage);
-    }
+    yield SubmoduleUtil.changeSubmodules(metaRepo, metaIndex, subsToChange);
 
     // After all the submodules are picked, write the index, perform cleanup,
     // and make the cherry-pick commit on the meta-repo.
 
     if (indexChanged) {
-        yield metaIndex.conflictCleanup();
         yield metaIndex.write();
+    }
+
+    // If one of the submodules could not be picked, exit.
+
+    if ("" !== errorMessage) {
+        throw new UserError(errorMessage);
     }
 
     metaRepo.stateCleanup();
