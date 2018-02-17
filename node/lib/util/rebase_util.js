@@ -59,12 +59,14 @@ const setHead = co.wrap(function *(repo, commitSha) {
  * Call `next` on the specified `rebase`; return the rebase operation for the
  * rebase or null if there is no further operation.
  *
+ * TODO: independent test
+ *
  * @async
  * @private
  * @param {NodeGit.Rebase} rebase
  * @return {RebaseOperation|null}
  */
-const callNext = co.wrap(function *(rebase) {
+exports.callNext = co.wrap(function *(rebase) {
     try {
         return yield rebase.next();
     }
@@ -143,7 +145,7 @@ Conflict rebasing the submodule ${colors.red(name)}.`;
         const newCommit = rebase.commit(null, signature, null);
         const originalCommit = op.id().tostrS();
         result.commits[newCommit.tostrS()] = originalCommit;
-        op = yield callNext(rebase);
+        op = yield exports.callNext(rebase);
     }
     if (null === result.error) {
         console.log(`Submodule ${colors.blue(name)}: finished \
@@ -186,7 +188,7 @@ const rebaseSubmodule = co.wrap(function *(opener, name, from, onto) {
     console.log(`Submodule ${colors.blue(name)}: starting \
 rebase; rewinding to ${colors.green(ontoCommitId.tostrS())}.`);
 
-    let op = yield callNext(rebase);
+    let op = yield exports.callNext(rebase);
     return yield processSubmoduleRebase(repo, name, rebase, op);
 });
 
@@ -435,7 +437,7 @@ const driveRebase = co.wrap(function *(metaRepo,
     let idx = rebase.operationCurrent();
     const total = rebase.operationEntrycount();
     function makeCallNext() {
-        return callNext(rebase);
+        return exports.callNext(rebase);
     }
     while (idx < total) {
         const rebaseOper = rebase.operationByIndex(idx);
@@ -547,7 +549,7 @@ up-to-date.`);
                                                      null,
                                                      null);
             console.log(`Rewinding to ${colors.green(commitId.tostrS())}.`);
-            yield callNext(rebase);
+            yield exports.callNext(rebase);
             return {
                 rebase: rebase,
                 submoduleCommits: {},

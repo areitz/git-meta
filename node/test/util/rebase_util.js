@@ -30,8 +30,9 @@
  */
 "use strict";
 
-const assert = require("chai").assert;
-const co     = require("co");
+const assert  = require("chai").assert;
+const co      = require("co");
+const NodeGit = require("nodegit");
 
 const RebaseUtil      = require("../../lib/util/rebase_util");
 const RepoASTTestUtil = require("../../lib/util/repo_ast_test_util");
@@ -69,6 +70,28 @@ function makeRebaser(operation) {
 }
 
 describe("rebase", function () {
+    it("callNext", co.wrap(function *() {
+        const init = "S:C2-1;Bmaster=2;C3-1;Bfoo=3";
+        const written = yield RepoASTTestUtil.createRepo(init);
+        const repo = written.repo;
+        const ontoSha = written.oldCommitMap["3"];
+        const fromId = NodeGit.Oid.fromString(ontoSha);
+        const fromAnnotated =
+                            yield NodeGit.AnnotatedCommit.lookup(repo, fromId);
+        const head = yield repo.head();
+        const ontoAnnotated = yield NodeGit.AnnotatedCommit.fromRef(repo,
+                                                                    head);
+        const rebase = yield NodeGit.Rebase.init(repo,
+                                                 fromAnnotated,
+                                                 ontoAnnotated,
+                                                 null,
+                                                 null);
+        const first = yield RebaseUtil.callNext(rebase);
+        assert.equal(first.id().tostrS(), ontoSha);
+        const second = yield RebaseUtil.callNext(rebase);
+        assert.isNull(second);
+    }));
+
     describe("rebase", function () {
 
         // Will append the leter 'M' to any created meta-repo commits, and the
