@@ -111,48 +111,75 @@ const callFinish = co.wrap(function *(repo, rebase) {
 });
 
 /**
- * Process the specified `rebase` for the submodule having the specified
- * `name`and open `repo`, beginning with the specified `op` and proceeding
- * until there are no more commits to rebase.  Return an object describing any
- * encountered error and commits made.
+ * Process the specified `rebase` for the specified `repo`, beginning with the
+ * specified `op` and proceeding until there are no more commits to rebase.
+ * Return an object describing any encountered error and commits made.
  *
  * @param {NodeGit.Repository}      rep
- * @param {String}                  name
  * @param {NodeGit.Rebase}          rebase
  * @param {NodeGit.RebaseOperation} op
  * @return {Object}
  * @return {Object} return.commits
- * @return {String|null} return.error
+ * @return {String|null} return.conflictedCommit
  */
-const processSubmoduleRebase = co.wrap(function *(repo,
-                                                  name,
-                                                  rebase,
-                                                  op) {
+exports.processRebase = co.wrap(function *(repo, rebase, op) {
     const result = {
         commits: {},
-        error: null,
+        conflictedCommit: null,
     };
     const signature = repo.defaultSignature();
     while (null !== op) {
-        console.log(`Submodule ${colors.blue(name)}: applying \
-commit ${colors.green(op.id().tostrS())}.`);
         const index = yield repo.index();
         if (index.hasConflicts()) {
-            result.error = `\
-Conflict rebasing the submodule ${colors.red(name)}.`;
-            break;                                                     // BREAK
+            result.conflictedCommit = op.id().tostrS();
+            return result;                                            // RETURN
         }
         const newCommit = rebase.commit(null, signature, null);
         const originalCommit = op.id().tostrS();
         result.commits[newCommit.tostrS()] = originalCommit;
         op = yield exports.callNext(rebase);
     }
-    if (null === result.error) {
-        console.log(`Submodule ${colors.blue(name)}: finished \
-rebase.`);
-        yield callFinish(repo, rebase);
-    }
     return result;
+});
+
+/**
+ * Rebease the commits from the specified `branch` commit on the the HEAD of the
+ * specified `repo`.  If the optionally specified `upstream` is provided,
+ * rewrite only commits beginning with `upstream`; otherwise, rewrite all
+ * reachable commits.  Return an object containing a map that describes any
+ * written commits and an error message if some part of the rewrite failed.
+ *
+ * @param {NodeGit.Repository}  repo
+ * @param {NodeGit.Commit}      commit
+ * @param {NodeGit.Commit|null} upstream
+ * @return {Object}
+ * @return {Object}      return.commits  new sha to original sha
+ * @return {String|null} return.error    error message if failed
+ */
+exports.rewriteCommits = co.wrap(function *(repo, branch, upstream) {
+    assert.instanceOf(repo, NodeGit.Repository);
+    assert.instanceOf(branch, NodeGit.Commit);
+    if (null !== upstream) {
+        assert.instanceOf(upstream, NodeGit.Commit);
+    }
+
+    const head = yield repo.head();
+    const ontoAnnotated = yield NodeGit.AnnotatedCommit.fromRef(repo, head);
+    const branchAnnotated =
+                       yield NodeGit.AnnotatedCommit.lookup(repo, branch.id());
+    let upstreamAnnotated = null;
+    if (null !== upstream) {
+        upstreamAnnotated =
+                     yield NodeGit.AnnotatedCommit.lookup(repo, upstream.id());
+    }
+    const rebase = yield NodeGit.Rebase.init(repo,
+                                             branchAnnotated,
+                                             upstreamAnnotated,
+                                             ontoAnnotated,
+                                             null);
+
+    const op = yield exports.callNext(rebase);
+    return yield exports.processRebase(repo, rebase, op);
 });
 
 /**

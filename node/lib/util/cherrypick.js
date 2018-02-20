@@ -40,6 +40,9 @@ const SubmoduleUtil       = require("./submodule_util");
 const UserError           = require("./user_error");
 
 /**
+ * Perform the rebase needed 
+
+/**
  * Cherry-pick the specified `commit` in the specified `metaRepo`.  Return an
  * object with the cherry-picked commits ids.  This object contains the id of
  * the newly-generated meta-repo commit and for each sub-repo, a map from
@@ -90,7 +93,7 @@ exports.cherryPick = co.wrap(function *(metaRepo, commit) {
                                                                   changedSubs);
     const metaIndex = yield metaRepo.index();
     const opener = new Open.Opener(metaRepo, null);
-    let submoduleCommits = {};
+    const submoduleCommits = {};
     const subFetcher = yield opener.fetcher();
     const picker = co.wrap(function *(subName, headSha, commitSha) {
         let commitMap = {};
